@@ -33,3 +33,7 @@ In the file:
 
 - In makefiles, for environment variables, put them in brackets after $. ex - 
 `$(PRIVATE_KEY)`
+
+## Verify Transactions
+
+- run " cast sig "function_name()" " and cross verify hexcode from metamask
