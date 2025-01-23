@@ -7,10 +7,10 @@
 
 ### Levels of Testing:
 
-// unit
-// integrations
-// forked
-// stagin <- run tests on a mainnent or testnet
+- unit
+- integrations
+- forked
+- staging <- run tests on a mainnent or testnet
 
 - Fuzz testing:
   Fuzz testing is a software testing technique that involves intentionally feeding invalid data into a program to find bugs, errors, and security risks.
