@@ -57,14 +57,14 @@ contract HelperConfig is Script, CodeConstants {
     function getSepoliaEthConfig() public pure returns (NetworkConfig memory) {
         return
             NetworkConfig({
-                entranceFee: 0.01 ether,
-                interval: 30, // 30 seconds
+                entranceFee: 0.01 ether, // Change this value to increase/decrease the entrance fee
+                interval: 30, // 30 seconds, Change this value to increase/decrease the time of the lottery
                 vrfCoordinator: 0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B,
                 gasLane: 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae,
-                subscriptionId: 0,
+                subscriptionId: 3767479344001922297049643111617235966612891553881999139762293355083882223754, // Your subscription id here
                 callbackGasLimit: 500000,
                 link: 0x779877A7B0D9E8603169DdbD7836e478b4624789,
-                account: 0x620B143432e71e1281B0f96d6D6497Eef9221ee3
+                account: 0x620B143432e71e1281B0f96d6D6497Eef9221ee3 // paste your wallet account address here
             });
     }
 

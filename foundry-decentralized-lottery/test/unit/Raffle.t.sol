@@ -92,7 +92,7 @@ contract RaffleTest is Test, CodeConstants {
         vm.roll(block.number + 1);
 
         // Act
-        (bool upKeepNeeded, ) = raffle.checkUpKeep("");
+        (bool upKeepNeeded, ) = raffle.checkUpkeep("");
 
         // Assert
         assert(upKeepNeeded == false);
@@ -105,7 +105,7 @@ contract RaffleTest is Test, CodeConstants {
         // Arranged by modifier
         raffle.performUpkeep("");
         // Act
-        (bool upKeepNeeded, ) = raffle.checkUpKeep("");
+        (bool upKeepNeeded, ) = raffle.checkUpkeep("");
 
         // Assert
         assert(!upKeepNeeded);
@@ -116,7 +116,7 @@ contract RaffleTest is Test, CodeConstants {
         vm.prank(PLAYER);
         raffle.enterRaffle{value: entranceFee}();
         // Act
-        (bool upKeepNeeded, ) = raffle.checkUpKeep("");
+        (bool upKeepNeeded, ) = raffle.checkUpkeep("");
 
         // Assert
         assert(!upKeepNeeded);
@@ -128,7 +128,7 @@ contract RaffleTest is Test, CodeConstants {
     {
         // Arrange
         // Act
-        (bool upKeepNeeded, ) = raffle.checkUpKeep("");
+        (bool upKeepNeeded, ) = raffle.checkUpkeep("");
 
         // Assert
         assert(upKeepNeeded);

@@ -97,7 +97,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
      * @return - ignored
      */
 
-    function checkUpKeep(
+    function checkUpkeep(
         bytes memory /* checkData */
     ) public view returns (bool upkeepNeeded, bytes memory /* performData */) {
         bool timeHasPassed = ((block.timestamp - s_firstTimeStamp) >
@@ -110,7 +110,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     }
 
     function performUpkeep(bytes calldata /* performData */) external {
-        (bool upkeepNeeded, ) = checkUpKeep("");
+        (bool upkeepNeeded, ) = checkUpkeep("");
         if (!upkeepNeeded) {
             revert Raffle__UpKeepNotNeeded(
                 address(this).balance,
