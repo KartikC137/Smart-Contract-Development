@@ -1,0 +1,9 @@
+[submodule "foundry-stable-coin/lib/forge-std"]
+	path = foundry-stable-coin/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "foundry-stable-coin/lib/chainlink-brownie-contracts"]
+	path = foundry-stable-coin/lib/chainlink-brownie-contracts
+	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
+[submodule "foundry-stable-coin/lib/openzeppelin-contracts"]
+	path = foundry-stable-coin/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
