@@ -54,8 +54,9 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__TokenNotAllowed();
     error DSCEngine__DepositFailed();
     error DSCEngine__TransferFailed();
-    error DSCEngine__HealthFactorTooLow();
+    error DSCEngine__HealthFactorTooLow(uint256 healthFactorValue);
     error DSCEngine__MintingFailed();
+    error DSCEngine__BurnAmountExceededBalance();
     error DSCEngine__HealthFactorIsOk();
     error DSCEngine__HealthFactorDidNotImprove(uint256 startingUserHealthFactor, uint256 endingUserHealthFactor);
 
@@ -213,9 +214,9 @@ contract DSCEngine is ReentrancyGuard {
      * @notice You will get a liquidation bonus for taking a users bonus
      * @notice This function assumes the protocol will be roughly 200% overcollateralized
      * @notice A known bug is that if the protocol is 100% or less collateralized, then we cannot incentivize the liquidator
-     * @notice For ex, if the price of ETH plummeted if anyone could liquidate.
+     * @notice For ex, if the price of ETH plummeted and if liquidated.
      */
-    function liquidate(address collateral, address user, uint256 debtToCover) external {
+    function liquidate(address collateralTokenAddress, address user, uint256 debtToCover) external {
         // check user's health factor
 
         uint256 startingUserHealthFactor = _healthFactor(user);
@@ -229,14 +230,14 @@ contract DSCEngine is ReentrancyGuard {
         // debtToCover = $100 DSC
         // $100 of DSC = ??? of ETH
 
-        uint256 tokenAmountFromDebtCovered = getTokenAmountFromUsd(collateral, debtToCover);
+        uint256 tokenAmountFromDebtCovered = getTokenAmountFromUsd(collateralTokenAddress, debtToCover);
 
         // and give them a 10% bonus
 
         uint256 bonus = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
         uint256 totalAmountReedemable = tokenAmountFromDebtCovered + bonus;
 
-        _redeemCollateral(collateral, totalAmountReedemable, user, msg.sender);
+        _redeemCollateral(collateralTokenAddress, totalAmountReedemable, user, msg.sender);
 
         // we need to burn DSC
 
@@ -288,6 +289,9 @@ contract DSCEngine is ReentrancyGuard {
      * @dev Low level interanal function, do not call unless health factor is being checked for
      */
     function _burnDSC(uint256 amount, address onBehalfOf, address dscFrom) private moreThanZero(amount) {
+        if (i_dsc.balanceOf(onBehalfOf) < amount) {
+            revert DSCEngine__BurnAmountExceededBalance();
+        }
         s_DSCMinted[onBehalfOf] -= amount;
         bool sucess = i_dsc.transferFrom(dscFrom, address(this), amount);
         if (!sucess) {
@@ -308,7 +312,7 @@ contract DSCEngine is ReentrancyGuard {
         pure
         returns (uint256)
     {
-        if (totalDscMinted == 0) return type(uint256).max; //if user doesn't hold any DSC, but have collateral
+        if (totalDscMinted == 0) return type(uint256).max; //if user doesn't hold any DSC, but has collateral
         uint256 collateralAdjustedForThresold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
         // ex for 1000 ETH collateral,
@@ -327,7 +331,7 @@ contract DSCEngine is ReentrancyGuard {
     function _revertIfHealthFactorIsBroken(address user) internal view {
         uint256 userHealthFactor = _healthFactor(user);
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
-            revert DSCEngine__HealthFactorTooLow();
+            revert DSCEngine__HealthFactorTooLow(userHealthFactor);
         }
     }
 
@@ -364,7 +368,7 @@ contract DSCEngine is ReentrancyGuard {
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
-        // 10e18 * 1e18 / $2000 * 1e10 = 5e18
+        // 1000 * 1e18 * 1e18 / $2000 * 1e8 * 1e10 = 5e17
         return ((usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION));
     }
 
@@ -380,5 +384,13 @@ contract DSCEngine is ReentrancyGuard {
     function getHealthFactor(address user) external view returns (uint256) {
         uint256 healthFactor = _healthFactor(user);
         return healthFactor;
+    }
+
+    function getAdditionalPrecision() external pure returns (uint256) {
+        return ADDITIONAL_FEED_PRECISION;
+    }
+
+    function getPrecision() external pure returns (uint256) {
+        return PRECISION;
     }
 }
