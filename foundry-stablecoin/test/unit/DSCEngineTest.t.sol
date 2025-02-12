@@ -17,6 +17,8 @@ contract DSCEngineTest is Test {
     HelperConfig config;
 
     uint256 constant STARTING_ERC20_BALANCE = 10 ether;
+    uint256 constant MIN_HEALTH_FACTOR = 1e18;
+    uint256 constant LIQUIDATION_THRESHOLD = 50;
 
     uint256 public amountCollateral = 10 ether;
     uint256 public amountToMint = 100 ether;
@@ -95,8 +97,10 @@ contract DSCEngineTest is Test {
     }
 
     ////////////////////////////////
-    // depositCollateral Tests /////
+    // depositCollateral Tests ///// // Unfinished commented functions
     ////////////////////////////////
+
+    // function testRevertsIfDepositFailed() public collateralDeposited{}
 
     function testRevertsIfCollateralZero() public {
         vm.startPrank(USER);
@@ -136,18 +140,16 @@ contract DSCEngineTest is Test {
         vm.stopPrank();
     }
 
-    // function testRevertsIfDepositFailed() public collateralDeposited{
-
-    // }
-
     function testCanDepositWithoutMinting() public collateralDeposited {
         uint256 userBalance = dsc.balanceOf(USER);
         assertEq(userBalance, 0);
     }
 
     ////////////////////////////////
-    // redeemCollateral Tests //////
+    // redeemCollateral Tests ////// // Unfinished commented functions
     ////////////////////////////////
+
+    function testRevertsIfTransferFails() public {}
 
     function testRevertsIfRedeemAmountIsZero() public {
         vm.startPrank(USER);
@@ -280,8 +282,10 @@ contract DSCEngineTest is Test {
     }
 
     ///////////////////////////
-    // Liquidation Tests ////// //Unfinished
+    // Liquidation Tests ////// // Unfinished commented functions
     ///////////////////////////
+
+    // function testMustImproveHealthFactorOnLiquidation() public {}
 
     function testCantLiquidateGoodHealthFactor() public depositedCollateralAndMintedDsc {
         ERC20Mock(weth).mint(LIQUIDATOR, collateralToCover);
@@ -314,5 +318,82 @@ contract DSCEngineTest is Test {
         dsce.liquidate(weth, USER, amountToMint); // We are covering their whole debt
         vm.stopPrank();
         _;
+    }
+
+    function testPayoutIsCorrectAfeterLiquidation() public liquidated {
+        uint256 liquidatorBalance = ERC20Mock(weth).balanceOf(LIQUIDATOR);
+        uint256 expectedWeth = dsce.getTokenAmountFromUsd(weth, amountToMint)
+            + (dsce.getTokenAmountFromUsd(weth, amountToMint) * dsce.getLiquidationBonus() / dsce.getLiquidationPrecision());
+
+        assertEq(expectedWeth, liquidatorBalance);
+    }
+
+    function testLiquidatorTakesOnUsersDebt() public liquidated {
+        (uint256 liquidatorDscMinted,) = dsce.getAccountInfo(LIQUIDATOR);
+        assertEq(liquidatorDscMinted, amountToMint);
+    }
+
+    function testUserHasNoMoreDebt() public liquidated {
+        (uint256 userDscMinted,) = dsce.getAccountInfo(USER);
+        assertEq(userDscMinted, 0);
+    }
+
+    //////////////////////////////////
+    // View & Pure Function Tests ////
+    //////////////////////////////////
+    function testGetCollateralTokenPriceFeed() public view {
+        address priceFeed = dsce.getCollateralTokenPriceFeed(weth);
+        assertEq(priceFeed, ethUsdPriceFeed);
+    }
+
+    function testGetCollateralTokens() public view {
+        address[] memory collateralTokens = dsce.getCollateralTokens();
+        assertEq(collateralTokens[0], weth);
+    }
+
+    function testGetMinHealthFactor() public view {
+        uint256 minHealthFactor = dsce.getMinHealthFactor();
+        assertEq(minHealthFactor, MIN_HEALTH_FACTOR);
+    }
+
+    function testGetLiquidationThreshold() public view {
+        uint256 liquidationThreshold = dsce.getLiquidationThreshold();
+        assertEq(liquidationThreshold, LIQUIDATION_THRESHOLD);
+    }
+
+    function testGetAccountCollateralValueFromInformation() public collateralDeposited {
+        (, uint256 collateralValue) = dsce.getAccountInfo(USER);
+        uint256 expectedCollateralValue = dsce.getUsdValue(weth, amountCollateral);
+        assertEq(collateralValue, expectedCollateralValue);
+    }
+
+    function testGetCollateralBalanceOfUser() public {
+        vm.startPrank(USER);
+        ERC20Mock(weth).approve(address(dsce), amountCollateral);
+        dsce.depositCollateral(weth, amountCollateral);
+        vm.stopPrank();
+        uint256 collateralBalance = dsce.getCollateralBalanceOfUser(USER, weth);
+        assertEq(collateralBalance, amountCollateral);
+    }
+
+    function testGetAccountCollateralValue() public {
+        vm.startPrank(USER);
+        ERC20Mock(weth).approve(address(dsce), amountCollateral);
+        dsce.depositCollateral(weth, amountCollateral);
+        vm.stopPrank();
+        uint256 collateralValue = dsce.getAccountCollateralValue(USER);
+        uint256 expectedCollateralValue = dsce.getUsdValue(weth, amountCollateral);
+        assertEq(collateralValue, expectedCollateralValue);
+    }
+
+    function testGetDsc() public view {
+        address dscAddress = dsce.getDsc();
+        assertEq(dscAddress, address(dsc));
+    }
+
+    function testLiquidationPrecision() public view {
+        uint256 expectedLiquidationPrecision = 100;
+        uint256 actualLiquidationPrecision = dsce.getLiquidationPrecision();
+        assertEq(actualLiquidationPrecision, expectedLiquidationPrecision);
     }
 }
