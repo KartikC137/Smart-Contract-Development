@@ -11,6 +11,7 @@ import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
 
 contract DSCEngineTest is Test {
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
+    event CollateralRedeemed(address indexed from, address indexed to, address indexed token, uint256 amount);
 
     DecentralizedStableCoin dsc;
     DSCEngine dsce;
@@ -173,6 +174,22 @@ contract DSCEngineTest is Test {
         assertEq(expectedCollateralValueInUsd, amountCollateral - amountToRedeem);
     }
 
+    function testEmitCollateralRedeemedWithCorrectArgs() public collateralDeposited {
+        vm.expectEmit(true, true, true, true, address(dsce));
+        emit CollateralRedeemed(USER, USER, weth, amountCollateral);
+        vm.startPrank(USER);
+        dsce.redeemCollateral(weth, amountCollateral);
+        vm.stopPrank();
+    }
+
+    function testCannotRedeemMoreThanDeposited() public collateralDeposited {
+        uint256 amountToRedeem = 11 ether;
+        vm.startPrank(USER);
+        vm.expectRevert();
+        dsce.redeemCollateral(weth, amountToRedeem);
+        vm.stopPrank();
+    }
+
     //////////////////////
     // Minting Tests /////
     //////////////////////
@@ -235,7 +252,11 @@ contract DSCEngineTest is Test {
         vm.startPrank(USER);
         dsce.mintDSC(amountToMint);
         dsc.approve(address(dsce), burnAmountMoreThanBalance);
-        vm.expectRevert(DSCEngine.DSCEngine__BurnAmountExceededBalance.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DSCEngine.DSCEngine__BurnAmountExceededBalance.selector, burnAmountMoreThanBalance, amountToMint
+            )
+        );
         dsce.burnDSC(burnAmountMoreThanBalance);
         vm.stopPrank();
     }

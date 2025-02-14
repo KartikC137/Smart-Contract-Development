@@ -29,6 +29,7 @@ import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {OracleLib} from "./libraries/OracleLib.sol";
 
 /**
  * @title DSCEngine
@@ -56,9 +57,16 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__TransferFailed();
     error DSCEngine__HealthFactorTooLow(uint256 healthFactorValue);
     error DSCEngine__MintingFailed();
-    error DSCEngine__BurnAmountExceededBalance();
+    error DSCEngine__BurnAmountExceededBalance(uint256 burnAmount, uint256 totalDSCMinted);
     error DSCEngine__HealthFactorIsOk();
     error DSCEngine__HealthFactorDidNotImprove(uint256 startingUserHealthFactor, uint256 endingUserHealthFactor);
+    error DSCEngine__RedeemAmountMoreThanDeposited(uint256 redeemAmount, uint256 depositedAmount);
+
+    /////////////////
+    // Types      ///
+    /////////////////
+
+    using OracleLib for AggregatorV3Interface;
 
     ////////////////////////
     // State Variables   ///
@@ -171,7 +179,7 @@ contract DSCEngine is ReentrancyGuard {
 
     /*
      * @notice In order to redeem collateral:
-        * The Health factor, after reedeming collateral must be >1.
+        * The Health factor, after redeeming collateral must be >1.
      */
 
     // DRY: don't repeat yourself
@@ -235,9 +243,9 @@ contract DSCEngine is ReentrancyGuard {
         // and give them a 10% bonus
 
         uint256 bonus = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
-        uint256 totalAmountReedemable = tokenAmountFromDebtCovered + bonus;
+        uint256 totalAmountRedeemable = tokenAmountFromDebtCovered + bonus;
 
-        _redeemCollateral(collateralTokenAddress, totalAmountReedemable, user, msg.sender);
+        _redeemCollateral(collateralTokenAddress, totalAmountRedeemable, user, msg.sender);
 
         // we need to burn DSC
 
@@ -270,15 +278,19 @@ contract DSCEngine is ReentrancyGuard {
     * If a user goess below 1 health factor, then they can get liquidated
     */
 
-    function _redeemCollateral(address tokenAddress, uint256 amountCollateral, address from, address to)
+    function _redeemCollateral(address tokenAddress, uint256 amountToRedeem, address from, address to)
         private
-        moreThanZero(amountCollateral)
+        moreThanZero(amountToRedeem)
         nonReentrant
     {
-        s_collateralDeposited[from][tokenAddress] -= amountCollateral;
-        emit CollateralRedeemed(from, to, tokenAddress, amountCollateral);
+        uint256 collateralBalance = s_collateralDeposited[from][tokenAddress];
+        if (collateralBalance < amountToRedeem) {
+            revert DSCEngine__RedeemAmountMoreThanDeposited(amountToRedeem, collateralBalance);
+        }
+        s_collateralDeposited[from][tokenAddress] -= amountToRedeem;
+        emit CollateralRedeemed(from, to, tokenAddress, amountToRedeem);
 
-        bool success = IERC20(tokenAddress).transfer(to, amountCollateral);
+        bool success = IERC20(tokenAddress).transfer(to, amountToRedeem);
 
         if (!success) {
             revert DSCEngine__TransferFailed();
@@ -289,8 +301,9 @@ contract DSCEngine is ReentrancyGuard {
      * @dev Low level interanal function, do not call unless health factor is being checked for
      */
     function _burnDSC(uint256 amount, address onBehalfOf, address dscFrom) private moreThanZero(amount) {
-        if (i_dsc.balanceOf(onBehalfOf) < amount) {
-            revert DSCEngine__BurnAmountExceededBalance();
+        uint256 totalDSCMinted = s_DSCMinted[onBehalfOf];
+        if (totalDSCMinted < amount) {
+            revert DSCEngine__BurnAmountExceededBalance(amount, totalDSCMinted);
         }
         s_DSCMinted[onBehalfOf] -= amount;
         bool sucess = i_dsc.transferFrom(dscFrom, address(this), amount);
@@ -359,7 +372,7 @@ contract DSCEngine is ReentrancyGuard {
 
     function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
         // if 1ETH =  $1000, the rounded value from chainlink is 1000 * 1e8
 
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION; // (1000 * 1e8 * 1e10) = 1000 * 1e18
@@ -367,7 +380,7 @@ contract DSCEngine is ReentrancyGuard {
 
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
         // 1000 * 1e18 * 1e18 / $2000 * 1e8 * 1e10 = 5e17
         return ((usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION));
     }
