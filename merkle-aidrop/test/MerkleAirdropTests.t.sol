@@ -22,6 +22,7 @@ contract MerkleAirdropTests is ZkSyncChainChecker, Test {
         0xe5ebd1e1b5a5478a944ecab36a9a954ac3b6b8216875f6524caa7a1d87096576;
     bytes32[] public proof = [proofOne, proofTwo];
     address user;
+    address gasPayer;
     uint256 privKey;
 
     function setUp() external {
@@ -36,13 +37,19 @@ contract MerkleAirdropTests is ZkSyncChainChecker, Test {
             dosa.transfer(address(airdrop), amountToSend);
         }
         (user, privKey) = makeAddrAndKey("user");
+        gasPayer = makeAddr("gasPayer");
     }
 
     function testUsersCanClaim() external {
         uint256 startingBalance = dosa.balanceOf(user);
+        bytes32 digest = airdrop.getMessageHash(user, amountToClaim);
 
-        vm.prank(user);
-        airdrop.claim(user, amountToClaim, proof);
+        //sign a message
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKey, digest);
+
+        // gasPayer calls claim using the signed message
+        vm.prank(gasPayer);
+        airdrop.claim(user, amountToClaim, proof, v, r, s);
 
         uint256 endingBalance = dosa.balanceOf(user);
         console.log("Starting balance: ", startingBalance);
